@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace ImageResizer
@@ -38,25 +39,29 @@ namespace ImageResizer
         /// <param name="sourcePath">圖片來源目錄路徑</param>
         /// <param name="destPath">產生圖片目的目錄路徑</param>
         /// <param name="scale">縮放比例</param>
-        public async Task ResizeImagesAsync(string sourcePath, string destPath, double scale)
+        public async Task ResizeImagesAsync(string sourcePath, string destPath, double scale, CancellationTokenSource cts)
         {
             var allFiles = FindImages(sourcePath);
             var tasks = new List<Task>();
             foreach (var filePath in allFiles)
-            { 
-                tasks.Add(Task.Run(async () =>
-                {
-                    await HandleImageAsync(destPath, scale, filePath);
-                }));
-              
+            {
+               
+                var task = Task.Run(async () => await HandleImageAsync(destPath, scale, filePath, cts));
+
+                tasks.Add(task);
             }
 
             await Task.WhenAll(tasks);
 
         }
 
-        private Task HandleImageAsync(string destPath, double scale, string filePath)
+        private Task HandleImageAsync(string destPath, double scale, string filePath, CancellationTokenSource cts)
         {
+            if (cts.IsCancellationRequested)
+            {
+                return Task.FromCanceled(cts.Token);
+            }
+
             Image imgPhoto = Image.FromFile(filePath);
 
             string imgName = Path.GetFileNameWithoutExtension(filePath);
@@ -64,12 +69,12 @@ namespace ImageResizer
             int sourceWidth = imgPhoto.Width;
             int sourceHeight = imgPhoto.Height;
 
-            int destionatonWidth = (int) (sourceWidth * scale);
-            int destionatonHeight = (int) (sourceHeight * scale);
+            int destionatonWidth = (int)(sourceWidth * scale);
+            int destionatonHeight = (int)(sourceHeight * scale);
 
             Stopwatch sw = new Stopwatch();
             sw.Start();
-            Bitmap processedImage = processBitmap((Bitmap) imgPhoto,
+            Bitmap processedImage = processBitmap((Bitmap)imgPhoto,
                 sourceWidth, sourceHeight,
                 destionatonWidth, destionatonHeight);
 
